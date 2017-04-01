@@ -1,0 +1,194 @@
+/*protocolo.h*/
+/* <n_bits$estado$data1$data2> 
+	<9$0$tam&ficha>
+	<9$1$x$y> mover
+	<9$2$0$0> error posicion invalida
+	<9$3$0$0> gane
+	<9$4$0$0> empate
+*/
+
+#include <string>
+#include <sstream>
+#include <vector>
+#include <iterator>
+#include <ctype.h>
+#include <unistd.h>
+#include <string.h>
+#include <iostream>
+#include <sstream>
+#include "tresRaya.h"
+using namespace std;
+struct datosProtocol {
+
+    int estado;
+    string dato1,dato2;
+    string protocolo;
+    datosProtocol(int c,string dat1, string dat2,string pro)
+    {
+        estado=c;
+        dato1=dat1;
+        dato2=dat2;
+        protocolo=pro;
+    }
+    datosProtocol() {}
+};
+
+int str_to_int(string s)
+{
+
+    string str = s;
+    istringstream buffer(str);
+    int value;
+    buffer >> value;
+    return value;
+}
+
+string to_string(int n)
+{
+	stringstream ss;
+	ss<<n;
+	return ss.str();
+}
+
+string generarProtocolo(int estado)
+{
+	string protocol ="<9$";
+	if (estado == 0) //Iniciar el juego
+	{
+		int tam;
+		cout<<"Ingrese el tam del tamblero :";
+		cin>>tam;
+		char ficha;
+		cout<<"Ingrese una ficha 'x' o 'o':";
+		cin>>ficha;
+		protocol +=to_string(estado)+"$"+to_string(tam)+"$"+ficha;
+		protocol +=">";
+	}
+	if (estado == 1) //mover fichas
+	{
+		int x;
+		cout<<"Ingrese la posicion x:";
+		cin>>x;
+		int y;
+		cout<<"Ingrese la posicion y:";
+		cin>>y;
+		protocol +=to_string(estado)+"$"+to_string(x)+"$"+to_string(y);
+		protocol +=">";
+	}
+
+	if (estado > 1 && estado <5) //error, gano, perdio
+	{
+		protocol +=to_string(estado)+"$"+to_string(0)+"$"+to_string(0);
+		protocol +=">";
+	}
+	else
+	{
+		cout<<"Error, estado no valido"<<endl;
+	}
+	return protocol;
+}
+
+string procesarBuffer (char *buffer)
+{
+	string proc="";
+	int i;
+	for (i=0;i<9;i++) proc+=buffer[i];
+	return proc;
+}
+
+void procesarProtocolo (string protoc, datosProtocol &dp)
+{
+	dp.estado = protoc[3];
+	dp.dato1 = protoc[5];
+	dp.dato2 = protoc[7];
+	dp.protocolo = protoc;
+	return;
+}
+
+void jugar(int SocketFD,Game &player_client, int &n, datosProtocol &protocol , int aux)
+{
+	char buffer[256];
+	char message[18];
+	bzero(buffer,256);
+	string proc;
+	volatile bool finish = 0;
+	do
+	{
+		if (aux == 1)
+		{
+			proc = generarProtocolo(1);
+	    	strcpy(buffer, proc.c_str()); //copiandolo al buffer
+	    	procesarProtocolo(proc,protocol);
+	    	if(!player_client.is_valid(str_to_int(protocol.dato1),str_to_int(protocol.dato2)))
+	        {
+	                cout<<"coordenada invalida "<<endl;
+	                continue;
+	        }
+	        player_client.board[str_to_int(protocol.dato1)][str_to_int(protocol.dato2)]=player_client.ficha;
+	        player_client.print();
+	        if(player_client.is_win(str_to_int(protocol.dato1),str_to_int(protocol.dato2)))
+	        {
+	            printf("ganas\n");
+	            finish = 1;
+	            proc = generarProtocolo(4);
+	            strcpy(buffer, proc.c_str()); //copiandolo al buffer
+	    		procesarProtocolo(proc,protocol);
+	        }
+
+	        cout << "Protocolo enviado: "<<proc <<endl;
+	    	n = send(SocketFD,buffer,18,0);/* code */
+		}
+		/*Recibir*/
+		printf("Esperando mensaje.....\n");
+        bzero(buffer,256);
+        n = read(SocketFD,buffer,255);
+        if (n < 0) perror("ERROR reading from socket");
+        printf("Chat: [%s]\n",buffer);
+        proc = procesarBuffer (buffer);
+        procesarProtocolo(proc,protocol);
+        cout<<"Protocolo recibido "<<proc<<endl;
+        if (protocol.estado == 1)
+        {
+       		if(!player_client.is_valid(str_to_int(protocol.dato1),str_to_int(protocol.dato2)))
+	        {
+	                cout<<"coordenada invalida "<<endl;
+	                continue;
+	        }
+	        player_client.board[str_to_int(protocol.dato1)][str_to_int(protocol.dato2)]=player_client.enemy;
+	        player_client.print();
+        }
+        if (protocol.estado == 4) 
+        {
+        	cout <<"Perdiste "<<endl;
+        	break;
+        }
+
+        /*Enviar*/ 
+        bzero(message,18);
+        printf("Mensaje: ");
+        scanf("%s",message);
+        proc = generarProtocolo(1);
+	    strcpy(message, proc.c_str()); //copiandolo al buffer
+	    procesarProtocolo(proc,protocol);
+	    if(!player_client.is_valid(str_to_int(protocol.dato1),str_to_int(protocol.dato2)))
+	    {
+	        cout<<"coordenada invalida "<<endl;
+	        continue;
+	    }
+	    player_client.board[str_to_int(protocol.dato1)][str_to_int(protocol.dato2)]=player_client.ficha;
+	    player_client.print();
+	   	if(player_client.is_win(str_to_int(protocol.dato1),str_to_int(protocol.dato2)))
+	        {
+	            printf("ganas\n");
+	            finish = 1;
+	            proc = generarProtocolo(4);
+	            strcpy(message, proc.c_str()); //copiandolo al buffer
+	    		procesarProtocolo(proc,protocol);
+	        }
+
+	        cout << "Protocolo enviado: "<<proc <<endl;
+        	n = send(SocketFD,message,18,0);
+        if (n < 0) perror("ERROR writing to socket");
+	}while (finish!=1);
+
+}
