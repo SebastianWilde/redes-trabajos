@@ -67,26 +67,30 @@
     int opcion = 0;
     cout<<"Elija una opcion\n 1)Crear partida\n 2)Conectarse a una partida\n"<<endl;
     cin >> opcion;
+    cout<<"Ingrese su nombre:";
+	cin>>nombre;
+	cout<<"Ingrese una ficha (tiene que ser una letra):";
+	cin>>ficha;
     if (opcion == 1)
     {
     	proc = generarProtocolo(0,nombre,ficha);
 	    cout << "Protocolo enviado: "<<proc <<endl;
-	    bzero(message,30);
+	    bzero(message,40);
 	    strcpy(message, proc.c_str()); //copiandolo al buffer
 	    procesarProtocolo(proc,protocol);
 	    cout<< "here" <<  protocol.estado<<endl;
-	    n = send(SocketFD,message,30,0);
+	    n = send(SocketFD,message,40,0);
     }
 
     if (opcion == 2)
     {
     	proc = generarProtocolo(1,nombre,ficha);
 	    cout << "Protocolo enviado: "<<proc <<endl;
-	    bzero(message,30);
+	    bzero(message,40);
 	    strcpy(message, proc.c_str()); //copiandolo al buffer
 	    procesarProtocolo(proc,protocol);
 	    cout<< "here" <<  protocol.estado<<endl;
-	    n = send(SocketFD,message,30,0);
+	    n = send(SocketFD,message,40,0);
     }
 
     printf("Esperando confirmacion.....\n");
@@ -97,12 +101,14 @@
     proc = procesarBuffer (buffer);
     procesarProtocolo(proc,protocol);
     cout<<"Protocolo recibido :"<<proc<<endl;
-    turno = protocol.data2; //Saber cual es mi turno
+    turno = str_to_int(protocol.dato2); //Saber cual es mi turno
     /* perform read write operations ... */
 
     /*Inicializando el juego */
-    Game temp(str_to_int(protocol.dato1),ficha);
+    Game temp(str_to_int(protocol.dato1),char_to_string(ficha));
     juego = temp;
+    cout<< "Datos del jugador:\n Nombre : "<<nombre <<endl;
+    cout <<"Ficha :"<< ficha<< "\n Turno: "<<protocol.dato2<<endl; 
     juego.print();
 
     /*juego cliente - servidor*/

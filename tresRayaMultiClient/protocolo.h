@@ -17,24 +17,6 @@
 #include <sstream>
 #include "game.h"
 using namespace std;
-struct datosProtocol {
-
-    int estado, sizeNombre,nBits;
-    string dato1,dato2,dato3,dato4,nombre, protocolo;
-    datosProtocol(int c,int tamNombre, int nbits,string dat1, string dat2,string dat3, string dat4,string name,string pro)
-    {
-        sizeNombre = tamNombre;
-        nBits = nbits;
-        estado=c;
-        dato1=dat1;
-        dato2=dat2;
-        dato3=dat3;
-        dato4=dat4;
-        nombre=name;
-        protocolo=pro;
-    }
-    datosProtocol() {}
-};
 
 int str_to_int(string s)
 {
@@ -58,29 +40,52 @@ char str_to_char(string s)
 	return s[0];
 }
 
+string char_to_string(char a)
+{
+	string aux="";
+	aux+=a;
+	return aux;
+}
+struct datosProtocol {
+
+    int estado, sizeNombre,nBits;
+    string dato1,dato2,dato3,dato4,nombre, protocolo;
+    datosProtocol(int c,int tamNombre, int nbits,string dat1, string dat2,string dat3, string dat4,string name,string pro)
+    {
+        sizeNombre = tamNombre;
+        nBits = nbits;
+        estado=c;
+        dato1=dat1;
+        dato2=dat2;
+        dato3=dat3;
+        dato4=dat4;
+        nombre=name;
+        protocolo=pro;
+    }
+    datosProtocol() {}
+
+    void generarStringProtocol()
+    {
+    	protocolo = "<" + to_string(nBits) + "||" + to_string(sizeNombre) + "||" + to_string(estado) + "||" +
+    	dato1  + "||" + dato2 + "||" + dato3 + "||" + dato4 + "||" + nombre +">";
+    }
+};
+
+
 string generarProtocolo(int estado, string &nombre, char &ficha)
 {
 	int tamNombre = nombre.size();
-	string protocol ="<9||"+ to_string(tamNombre)+"||"+to_string(estado)+"||";
+	string protocol ="<00||"+ to_string(tamNombre)+"||"+to_string(estado)+"||";
 	if (estado == 0) //Crear juego
 	{
 		int tam;
 		cout<<"Ingrese el tam del tamblero :";
 		cin>>tam;
-		//char ficha;
-		cout<<"Ingrese su nombre:";
-		cin>>nombre;
-		cout<<"Ingrese una ficha 'x' o 'o':";
-		cin>>ficha;
 		protocol +=to_string(tam)+"||"+ficha+"||0||0||";
 	}
 	if (estado == 1) //conectarse al juego
 	{
-		//char ficha;
-		cout<<"Ingrese una ficha 'x' o 'o':";
-		cin>>ficha;
-		protocol +="0||";
-		protocol += ficha + "||0||0||";
+		protocol +=string("0||") + ficha + string("||0||0||");
 	}
 
 	if (estado == 2) //iniciar juego, esto envia el servidor
@@ -108,7 +113,9 @@ string generarProtocolo(int estado, string &nombre, char &ficha)
 		cout<<"Error, estado no valido"<<endl;
 	}
 	protocol+=nombre+">";
-	protocol[1] = str_to_char(to_string(protocol.size()));
+	string aux =to_string(protocol.size());
+	protocol[1] = aux [0];
+	protocol[2] = aux [1];
 	return protocol;
 }
 
@@ -122,19 +129,21 @@ string procesarBuffer (char *buffer)
 
 void procesarProtocolo (string protoc, datosProtocol &dp)
 {
-	dp.nBits = protoc[1] - '0';
-	dp.sizeNombre = protoc[4] - '0';
-	dp.estado = protoc[7] - '0';
-	dp.dato1 = protoc[10];
-	dp.dato2 = protoc[13];
-	dp.dato3 = protoc[16];
-	dp.dato4 = protoc[19];
+	int bits = (protoc[1] - '0') *10 + (protoc[2] - '0');
+	// cout<<"here la conversion "<<bits<<endl;
+	dp.nBits = bits;
+	dp.sizeNombre = protoc[5] - '0';
+	dp.estado = protoc[8] - '0';
+	dp.dato1 = protoc[11];
+	dp.dato2 = protoc[14];
+	dp.dato3 = protoc[17];
+	dp.dato4 = protoc[20];
 
 	dp.nombre ="";
 	int i;
-	for (i=22;protoc[i]!='>';i++)
+	for (i=23;protoc[i]!='>';i++)
 		dp.nombre+=protoc[i];
-	cout<< "Here :"<<dp.estado<<endl;
+	// cout<< "Here :"<<dp.estado<<endl;
 	dp.protocolo = protoc;
 	return;
 }
@@ -142,17 +151,21 @@ void procesarProtocolo (string protoc, datosProtocol &dp)
 void jugar(int SocketFD,Game &player_client, int &n, datosProtocol &protocol , int miTurno, char miFicha, string miNombre)
 {
 	char buffer[256];
-	char message[18];
+	char message[40];
 	bzero(buffer,256);
 	string proc;
 	volatile bool finish = 0;
 	do
 	{
-		if (protocol.estado == 2 && protocol.dato3 == miTurno)
+		if (protocol.estado == 2 && protocol.dato3 == to_string(miTurno))
 		{
 			proc = generarProtocolo(3, miNombre,miFicha);
-			proc[16] = miTurno; //agregar el turno del que juega al protocolo
-	    	strcpy(buffer, proc.c_str()); //copiandolo al buffer
+			procesarProtocolo(proc,protocol);
+			protocol.dato3 = to_string(miTurno); //agregar el turno del que juega al protocolo
+			protocol.generarStringProtocol();
+			proc = protocol.protocolo;
+			bzero(message,40);
+	    	strcpy(message, proc.c_str()); //copiandolo al buffer
 	    	procesarProtocolo(proc,protocol);
 	    	if(!player_client.is_valid(str_to_int(protocol.dato1),str_to_int(protocol.dato2)))
 	        {
@@ -160,18 +173,18 @@ void jugar(int SocketFD,Game &player_client, int &n, datosProtocol &protocol , i
 	                continue;
 	        }
 	        player_client.board[str_to_int(protocol.dato1)][str_to_int(protocol.dato2)]=miFicha;
-	        player_client.print();
+	       	player_client.print();
 	        if(player_client.is_win(str_to_int(protocol.dato1),str_to_int(protocol.dato2)))
 	        {
 	            printf("ganas\n");
 	            finish = 1;
 	            proc = generarProtocolo(4,miNombre,miFicha);
-	            strcpy(buffer, proc.c_str()); //copiandolo al buffer
+	            strcpy(message, proc.c_str()); //copiandolo al buffer
 	    		procesarProtocolo(proc,protocol);
 	        }
 
 	        cout << "Protocolo enviado: "<<proc <<endl;
-	    	n = send(SocketFD,buffer,18,0);/* code */
+	    	n = send(SocketFD,message,40,0);/* code */
 		}
 		/*Recibir*/
 		else
@@ -185,48 +198,51 @@ void jugar(int SocketFD,Game &player_client, int &n, datosProtocol &protocol , i
 	        procesarProtocolo(proc,protocol);
 	        cout<<"Protocolo recibido :"<<proc<<endl;
 	        cout<<"Protocolo recibido :"<<protocol.estado<<endl;
-	        if (protocol.estado == 1)
+	        if (protocol.estado == 3)
 	        {
 	       		if(!player_client.is_valid(str_to_int(protocol.dato1),str_to_int(protocol.dato2)))
 		        {
 		                cout<<"coordenada invalida "<<endl;
 		        }
 		        cout<<"Aqui tiene q imprimir "<<protocol.dato1<<" "<<protocol.dato2<<endl;
-		        player_client.board[str_to_int(protocol.dato1)][str_to_int(protocol.dato2)]=player_client.enemy;
+		        player_client.board[str_to_int(protocol.dato1)][str_to_int(protocol.dato2)]=protocol.dato4;
 	        	player_client.print();
 	        }
 	        if (protocol.estado == 4) 
 	        {
+	        	player_client.board[str_to_int(protocol.dato1)][str_to_int(protocol.dato2)]=protocol.dato4;
+	        	player_client.print();
 	        	cout <<"Perdiste "<<endl;
 	        	break;
 	        }
-	        cout<<"Ready to send sht "<<endl;
-	        
-	        /*Enviar*/ 
-	        
-	        bzero(message,18);
-	        proc = generarProtocolo(1);
-		    strcpy(message, proc.c_str()); //copiandolo al buffer
-		    procesarProtocolo(proc,protocol);
-		    if(!player_client.is_valid(str_to_int(protocol.dato1),str_to_int(protocol.dato2)))
-		    {
-		        cout<<"coordenada invalida "<<endl;
-		        continue;
-		    }
-		    player_client.board[str_to_int(protocol.dato1)][str_to_int(protocol.dato2)]=player_client.ficha;
-		    player_client.print();
-		   	if(player_client.is_win(str_to_int(protocol.dato1),str_to_int(protocol.dato2)))
+	        if (protocol.dato3 == to_string(miTurno))
+	        {
+	        	cout<<"Ready to send sht "<<endl;
+	        	/*Enviar*/ 
+	        	bzero(message,40);
+	        	proc = generarProtocolo(3,miNombre,miFicha);
+		    	strcpy(message, proc.c_str()); //copiandolo al buffer
+		    	procesarProtocolo(proc,protocol);
+		    	if(!player_client.is_valid(str_to_int(protocol.dato1),str_to_int(protocol.dato2)))
+		    	{
+			        cout<<"coordenada invalida "<<endl;
+			        continue;
+		    	}
+		    	player_client.board[str_to_int(protocol.dato1)][str_to_int(protocol.dato2)]=miFicha;
+		    	player_client.print();
+		   		if(player_client.is_win(str_to_int(protocol.dato1),str_to_int(protocol.dato2)))
 		        {
 		            printf("ganas\n");
 		            finish = 1;
-		            proc = generarProtocolo(4);
+		            bzero(message,40);
+		            proc = generarProtocolo(4,miNombre,miFicha);
 		            strcpy(message, proc.c_str()); //copiandolo al buffer
 		    		procesarProtocolo(proc,protocol);
 		        }
-
 		        cout << "Protocolo enviado: "<<proc <<endl;
-	        	n = send(SocketFD,message,18,0);
-	        if (n < 0) perror("ERROR writing to socket");
+	        	n = send(SocketFD,message,40,0);
+	        	if (n < 0) perror("ERROR writing to socket");
+	        }
 	    }
 	}while (finish==0);
 
