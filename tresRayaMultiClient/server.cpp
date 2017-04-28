@@ -114,9 +114,7 @@ void *task1 (void *rank)
  
    	//pthread_mutex_lock(&mutex);
    	datos[clnName] = tempTurno;
-
    	tempTurno++;
-
    	cantidadJugadores++;
    	//pthread_mutex_lock(&mutex);
    	cout<<"th "<< my_rank<<" protoclo recibido: "<<miProc<<" de "<<clnName<<endl;

@@ -1,0 +1,1 @@
+/usr/bin/c++   -g   CMakeFiles/3_raya_p2p.dir/client.cpp.o CMakeFiles/3_raya_p2p.dir/DieWithError.cpp.o CMakeFiles/3_raya_p2p.dir/TCPEchoServer.cpp.o  -o 3_raya_p2p 
